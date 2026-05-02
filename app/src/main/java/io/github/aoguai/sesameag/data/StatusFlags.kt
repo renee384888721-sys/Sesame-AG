@@ -180,11 +180,19 @@ object StatusFlags {
     /** 今日运动日常任务是否已完成 */
     const val FLAG_ANTSPORTS_DAILY_TASKS_DONE: String = "FLAG_ANTSPORTS_dailyTasks_Done"
 
+    /** 运动签到：今日已处理或已进入业务止损 */
+    const val FLAG_ANTSPORTS_CHECK_IN_HANDLED_TODAY: String = "AntSports::checkInHandledToday"
+
     /** 运动首页气泡任务：按 taskId 维度的当日冷却前缀 */
     const val FLAG_ANTSPORTS_HOME_BUBBLE_COOLDOWN_PREFIX = "AntSports::homeBubbleCooldown::"
 
-    /** 走路挑战赛：服务端当日不可用，停止重复报名 */
-    const val FLAG_ANTSPORTS_WALK_CHALLENGE_UNAVAILABLE_TODAY = "AntSports::walkChallengeUnavailableToday"
+    /** 走路挑战赛线上赛报名：服务端当日不可用，停止重复报名 */
+    const val FLAG_ANTSPORTS_WALK_CHALLENGE_UNAVAILABLE_TODAY =
+        "AntSports::walkChallengeOnlineGameUnavailableToday"
+
+    /** 走路挑战赛线上赛：今日已提交一次运动记录 */
+    const val FLAG_ANTSPORTS_WALK_CHALLENGE_PROGRESS_DONE =
+        "AntSports::walkChallengeProgressDoneToday"
 
     /** 运动路线：今日已尝试复活步数且无可继续复活资源 */
     const val FLAG_ANTSPORTS_ROUTE_REVIVE_TRIED = "AntSports::routeReviveTried"

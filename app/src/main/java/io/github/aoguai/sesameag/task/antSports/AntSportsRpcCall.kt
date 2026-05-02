@@ -946,49 +946,344 @@ object AntSportsRpcCall {
     }
 
     /**
-     * @brief 查询账户信息
-     * 
+     * @brief 查询已报名线上赛列表
+     *
+     * @param statusList 报名状态，抓包中进行中比赛为 "JOIN"
+     *
      * @return RPC调用结果的 JSON 字符串
-     * 
-     * @remark 对应API：alipay.tiyubiz.user.asset.query.account
+     *
+     * @remark 对应API：alipay.tiyubiz.userOnlineGame.listquery
      */
-    fun queryAccount(): String {
+    fun userOnlineGameListQuery(statusList: String = "JOIN"): String {
         return RequestManager.requestString(
-            "alipay.tiyubiz.user.asset.query.account",
-            """[{"accountType":"TIYU_SEED"}]"""
+            "alipay.tiyubiz.userOnlineGame.listquery",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES,"index":1,"isInProgress":true,"size":10,"statusList":"$statusList"}]"""
         )
     }
 
     /**
-     * @brief 查询赛轮列表
-     * 
+     * @brief 查询线上赛列表
+     *
+     * @param bizType 线上赛分组，如 RECOMMEND_GAME、NEW_ONLINE_GAME、STEP_GAME
+     * @param notInWufu 是否带上抓包中的 notinwufu 标记
+     *
      * @return RPC调用结果的 JSON 字符串
-     * 
-     * @remark 对应API：alipay.tiyubiz.wenti.walk.queryRoundList
+     *
+     * @remark 对应API：alipay.tiyubiz.onlineGame.sports.listquery
      */
-    fun queryRoundList(): String {
+    fun onlineGameSportsListQuery(
+        bizType: String,
+        index: Int = 1,
+        size: Int = 10,
+        notInWufu: Boolean = false
+    ): String {
+        val notInWufuField = if (notInWufu) ",\"notinwufu\":\"true\"" else ""
         return RequestManager.requestString(
-            "alipay.tiyubiz.wenti.walk.queryRoundList",
-            """[{}]"""
+            "alipay.tiyubiz.onlineGame.sports.listquery",
+            """[{"bizType":"$bizType","chInfo":"medical_health","clientOS":"android","features":$FEATURES,"index":$index$notInWufuField,"size":$size}]"""
         )
     }
 
     /**
-     * @brief 参与比赛
-     * 
-     * @param bettingPoints 下注积分
-     * @param instanceId 实例ID
-     * @param resultId 结果ID
-     * @param roundId 轮次ID
-     * 
+     * @brief 查询线上赛目标档位
+     *
+     * @param gameId 比赛 ID
+     *
      * @return RPC调用结果的 JSON 字符串
-     * 
-     * @remark 对应API：alipay.tiyubiz.wenti.walk.participate
+     *
+     * @remark 对应API：alipay.tiyubiz.onlineGame.eventQuery
      */
-    fun participate(bettingPoints: Int, instanceId: String, resultId: String, roundId: String): String {
+    fun onlineGameEventQuery(gameId: String): String {
         return RequestManager.requestString(
-            "alipay.tiyubiz.wenti.walk.participate",
-            """[{"bettingPoints":$bettingPoints,"guessInstanceId":"$instanceId","guessResultId":"$resultId","newParticipant":false,"roundId":"$roundId","stepTimeZone":"$TIME_ZONE"}]"""
+            "alipay.tiyubiz.onlineGame.eventQuery",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES,"gameId":"$gameId"}]"""
+        )
+    }
+
+    /**
+     * @brief 报名线上赛
+     *
+     * @param gameId 比赛 ID
+     * @param gameEventId 目标档位 ID
+     * @param rightsPackageId 权益包 ID
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：alipay.tiyubiz.userOnlineGame.signup
+     */
+    fun userOnlineGameSignup(gameId: String, gameEventId: String, rightsPackageId: String): String {
+        return RequestManager.requestString(
+            "alipay.tiyubiz.userOnlineGame.signup",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES,"gameEventId":"$gameEventId","gameId":"$gameId","rightsPackageId":"$rightsPackageId"}]"""
+        )
+    }
+
+    /**
+     * @brief 查询已报名线上赛详情
+     *
+     * @param gameId 比赛 ID
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：alipay.tiyubiz.userOnlineGame.detailQuery.forwenti
+     */
+    fun userOnlineGameDetailQuery(gameId: String): String {
+        return RequestManager.requestString(
+            "alipay.tiyubiz.userOnlineGame.detailQuery.forwenti",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES,"gameId":"$gameId"}]"""
+        )
+    }
+
+    /**
+     * @brief 查询线上赛运动数据列表
+     *
+     * @param gameId 比赛 ID
+     * @param userGameId 用户参赛 ID
+     * @param sync 是否先同步服务端记录
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：alipay.tiyubiz.userOnlineGame.dataQuery
+     */
+    fun userOnlineGameDataQuery(
+        gameId: String,
+        userGameId: String,
+        sync: Boolean = true,
+        pageIndex: Int = 1,
+        pageSize: Int = 3
+    ): String {
+        return RequestManager.requestString(
+            "alipay.tiyubiz.userOnlineGame.dataQuery",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES,"gameId":"$gameId","pageIndex":$pageIndex,"pageSize":$pageSize,"sync":$sync,"userGameId":"$userGameId"}]"""
+        )
+    }
+
+    /**
+     * @brief 查询运动工具配置
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.querySportsToolConfig
+     */
+    fun querySportsToolConfig(): String {
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.querySportsToolConfig",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES}]"""
+        )
+    }
+
+    /**
+     * @brief 查询运动工具页面
+     *
+     * @param outBizCode 线上赛 gameId
+     * @param sportsType 运动类型，如 walk/run
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.querySportsToolPage
+     */
+    fun querySportsToolPage(outBizCode: String, sportsType: String): String {
+        val args = JSONArray().put(JSONObject().apply {
+            put("chInfo", "medical_health")
+            put("clientOS", "android")
+            put("extraInfo", JSONObject().put("bizDesc", ""))
+            put("features", JSONArray(FEATURES))
+            put("fromAppId", "sports_online_game")
+            put("outBizCode", outBizCode)
+            put("sportsType", sportsType)
+        })
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.querySportsToolPage",
+            args.toString()
+        )
+    }
+
+    /**
+     * @brief 查询用户进行中的运动记录
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.queryUserMovingRecord
+     */
+    fun queryUserMovingRecord(): String {
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.queryUserMovingRecord",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES}]"""
+        )
+    }
+
+    /**
+     * @brief 查询运动工具音频配置
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.queryAudioConfig
+     */
+    fun queryAudioConfig(): String {
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.queryAudioConfig",
+            """[{"chInfo":"medical_health","clientOS":"android","features":$FEATURES,"supportPlayBgm":true}]"""
+        )
+    }
+
+    /**
+     * @brief 同步运动工具传感器授权状态
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.sportsHealthHomeRpc.syncDeviceAuthInfo
+     */
+    fun syncSportsDeviceAuthInfo(): String {
+        val authInfo = JSONObject().apply {
+            put("authCanOpen", false)
+            put("authOpen", true)
+            put("authState", "authed")
+            put("authType", "sensor")
+            put("dataSource", "")
+            put("queryError", "NO_ERROR_CODE")
+        }
+        val args = JSONArray().put(JSONObject().apply {
+            put("authInfos", JSONArray().put(authInfo))
+            put("chInfo", "default")
+            put("clientOS", "android")
+        })
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.sportsHealthHomeRpc.syncDeviceAuthInfo",
+            args.toString()
+        )
+    }
+
+    /**
+     * @brief 开始运动工具记录
+     *
+     * @param outBizCode 线上赛 gameId
+     * @param sportsType 运动类型，如 walk/run
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.startSports
+     */
+    fun startSports(outBizCode: String, sportsType: String): String {
+        val args = JSONArray().put(JSONObject().apply {
+            put("chInfo", "medical_health")
+            put("clientOS", "android")
+            put("extraInfo", JSONObject().apply {
+                put("bizDesc", "")
+                put("planId", "")
+            })
+            put("features", JSONArray(FEATURES))
+            put("fromAppId", "sports_online_game")
+            put("outBizCode", outBizCode)
+            put("sportsType", sportsType)
+        })
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.startSports",
+            args.toString()
+        )
+    }
+
+    /**
+     * @brief 结束运动工具记录
+     *
+     * @param record 运动记录体，对应抓包 requestData[].record
+     * @param isNormalFinish 是否正常结束
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.finishSports
+     */
+    fun finishSports(record: JSONObject, isNormalFinish: Boolean = true): String {
+        val args = JSONArray().put(JSONObject().apply {
+            put("chInfo", "medical_health")
+            put("clientOS", "android")
+            put("features", JSONArray(FEATURES))
+            put("isAutoStop", false)
+            put("isNormalFinish", isNormalFinish)
+            put("record", record)
+        })
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.finishSports",
+            args.toString()
+        )
+    }
+
+    /**
+     * @brief 查询运动工具记录详情
+     *
+     * @param outBizCode 线上赛 gameId
+     * @param recordId 运动记录 ID
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.querySportsRecordDetail
+     */
+    fun querySportsRecordDetail(outBizCode: String, recordId: String): String {
+        val args = JSONArray().put(JSONObject().apply {
+            put("chInfo", "medical_health")
+            put("clientOS", "android")
+            put("features", JSONArray(FEATURES))
+            put("fromAppId", "sports_online_game")
+            put("outBizCode", outBizCode)
+            put("recordId", recordId)
+            put("source", "SPORTS_TOOL")
+        })
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.querySportsRecordDetail",
+            args.toString()
+        )
+    }
+
+    /**
+     * @brief 同步运动工具结束粒子统计
+     *
+     * @return RPC调用结果的 JSON 字符串
+     *
+     * @remark 对应API：com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.finishSyncParticles
+     */
+    fun finishSyncParticles(
+        recordId: String,
+        sportsType: String,
+        stepCount: Int,
+        distance: Double,
+        durationMillis: Long,
+        startTime: Long,
+        endTime: Long,
+        index: Int
+    ): String {
+        val particle = JSONObject().apply {
+            put("accelStep", stepCount)
+            put("distance", 0)
+            put("duration", 0)
+            put("endTime", endTime)
+            put("gpsScore", 0)
+            put("identifier", recordId)
+            put("invalidStatistics", JSONObject().apply {
+                put("last", 0)
+                put("accuracy", 6)
+                put("speedOrAcc", 3)
+            }.toString())
+            put("lbsStatistics", JSONObject().apply {
+                put("gps", "80")
+                put("wifi", "1")
+            }.toString())
+            put("sportDistance", distance)
+            put("sportDuration", durationMillis)
+            put("startTime", startTime)
+            put("status", "stop")
+            put("step", stepCount)
+            put("type", sportsType)
+        }
+        val args = JSONArray().put(JSONObject().apply {
+            put("chInfo", "medical_health")
+            put("clientOS", "android")
+            put("features", JSONArray(FEATURES))
+            put("index", index)
+            put("particleDetailInfos", JSONArray().put(particle))
+            put("recordId", recordId)
+        })
+        return RequestManager.requestString(
+            "com.alipay.sportshealth.biz.rpc.SportsHealthToolRpc.finishSyncParticles",
+            args.toString()
         )
     }
 
