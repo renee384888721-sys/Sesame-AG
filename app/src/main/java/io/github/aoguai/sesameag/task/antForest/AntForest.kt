@@ -177,14 +177,9 @@ class AntForest : ModelTask(), EnergyCollectCallback {
     private var collectBombEnergyLimit: IntegerModelField? = null // 炸弹能量收取阈值
     private var balanceNetworkDelay: BooleanModelField? = null // 平衡网络延迟开关
     var whackMoleMode: ChoiceModelField? = null // 6秒拼手速开关
-
-    /** 6秒拼手速游戏局数配置 */
-    var whackMoleGames: IntegerModelField? = null
-    var whackMoleMoleCount: IntegerModelField? = null
     var whackMoleTime: TimePointModelField? = null // 6秒拼手速执行时间
 
-    // 6秒拼手速模式选择
-    val whackMoleModeNames = arrayOf("关闭", "兼容", "激进")
+    val whackMoleModeNames = arrayOf("关闭", "开启")
     internal var collectProp: BooleanModelField? = null // 收集道具开关
     private var queryInterval: StringModelField? = null // 查询间隔时间
     private var collectInterval: StringModelField? = null // 收取间隔时间
@@ -416,23 +411,11 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         modelFields.addField(
             ChoiceModelField(
                 "whackMoleMode",
-                "6秒拼手速 | 运行模式",
+                "6秒拼手速 | 开启",
                 0, // 默认值为 0 (关闭)
                 whackMoleModeNames
-            ).withDesc("控制 6 秒拼手速玩法的运行模式。").also { whackMoleMode = it }
+            ).withDesc("开启后按服务端返回的地鼠列表执行一次 6 秒拼手速。").also { whackMoleMode = it }
         )
-        modelFields.addField(
-            IntegerModelField(
-                "whackMoleGames",
-                "6秒拼手速 | 激进模式局数",
-                5,
-            ).withDesc("激进模式下每天挑战的局数上限。").also { whackMoleGames = it })
-        modelFields.addField(
-            IntegerModelField(
-                "whackMoleMoleCount",
-                "6秒拼手速 | 兼容模式击打数",
-                15,
-            ).withDesc("兼容模式下每局目标击打数量，用于保守刷奖励。").also { whackMoleMoleCount = it })
         modelFields.addField(
             TimePointModelField(
                 "whackMoleTime",
@@ -1993,10 +1976,8 @@ class AntForest : ModelTask(), EnergyCollectCallback {
      */
     internal fun checkAndHandleWhackMole() {
         try {
-            // 获取当前选择的索引 (0, 1, 或 2)
             val modeIndex = whackMoleMode?.value ?: 0
 
-            // 如果索引为 0 (关闭)，直接返回
             if (modeIndex == 0) {
                 Log.forest("🎮 拼手速未开启，跳过")
                 return
@@ -2014,24 +1995,8 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                 return
             }
 
-            // 根据索引匹配模式
-            when (modeIndex) {
-                1 -> { // 兼容模式
-                    Log.forest("🎮 触发拼手速任务: 兼容模式")
-                    WhackMole.setTotalGames(1)
-                    WhackMole.setMoleCount(whackMoleMoleCount?.value ?: 15)
-                    WhackMole.start(WhackMole.Mode.COMPATIBLE)
-                }
-
-                2 -> { // 激进模式
-                    Log.forest("🎮 触发拼手速任务: 激进模式")
-                    val configGames = whackMoleGames?.value ?: 5
-                    WhackMole.setTotalGames(configGames)
-                    WhackMole.start(WhackMole.Mode.AGGRESSIVE)
-                }
-
-                else -> Log.forest("🎮 拼手速配置值异常[$modeIndex]，跳过")
-            }
+            Log.forest("🎮 触发拼手速任务")
+            WhackMole.start()
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, t)
         }
@@ -3593,17 +3558,29 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         robMultiplierEnergySource: String? = null
     ) {
         try {
-            val usingUserProps: JSONArray = if (isTeam(joHomePage)) {
-                // 组队模式
+            val teamUsingUserProps = if (isTeam(joHomePage)) {
                 joHomePage.optJSONObject("teamHomeResult")
                     ?.optJSONObject("mainMember")
                     ?.optJSONArray("usingUserProps")
-                    ?: JSONArray()
             } else {
-                // 单人模式
-                joHomePage.optJSONArray("usingUserPropsNew")
-                    ?: JSONArray()
+                null
             }
+            val usingUserProps = JSONArray()
+            val seenPropKeys = mutableSetOf<String>()
+            fun appendUsingProps(props: JSONArray?) {
+                if (props == null) return
+                for (index in 0..<props.length()) {
+                    val prop = props.optJSONObject(index) ?: continue
+                    val key = prop.optString("propId")
+                        .ifBlank { "${prop.optString("propGroup")}:${prop.optString("propType")}" }
+                    if (seenPropKeys.add(key)) {
+                        usingUserProps.put(prop)
+                    }
+                }
+            }
+            appendUsingProps(teamUsingUserProps)
+            appendUsingProps(joHomePage.optJSONArray("usingUserPropsNew"))
+            appendUsingProps(joHomePage.optJSONArray("loginUserUsingPropNew"))
             for (i in 0..<usingUserProps.length()) {
                 val userUsingProp = usingUserProps.getJSONObject(i)
                 val propGroup = userUsingProp.getString("propGroup")
@@ -7499,22 +7476,12 @@ class AntForest : ModelTask(), EnergyCollectCallback {
     /**
      * 手动触发森林打地鼠
      */
-    suspend fun manualWhackMole(modeIndex: Int, games: Int) {
+    suspend fun manualWhackMole() {
         try {
             val obj = querySelfHome()
             if (obj != null) {
-                // 确定模式：1 为兼容，2 为激进
-                val mode = if (modeIndex == 2) WhackMole.Mode.AGGRESSIVE else WhackMole.Mode.COMPATIBLE
-
-                // 设置本次执行的总局数
-                WhackMole.setTotalGames(games)
-                WhackMole.setMoleCount(whackMoleMoleCount?.value ?: 15)
-
-                Log.forest("🎮 手动触发拼手速任务: ${if (mode == WhackMole.Mode.AGGRESSIVE) "激进模式" else "兼容模式"}, 目标局数: $games"
-                )
-
-                // 执行游戏
-                WhackMole.startSuspend(mode)
+                Log.forest("🎮 手动触发拼手速任务")
+                WhackMole.startSuspend()
             } else {
                 Log.forest("无法获取自己主页信息")
             }

@@ -63,8 +63,6 @@ object ModelFieldTodayStateResolver {
                 flag(StatusFlags.FLAG_ANTFOREST_ENERGY_PVP_CHALLENGE_DONE, "今日 1V1 能量挑战赛已处理")
 
             "AntForest.whackMoleMode",
-            "AntForest.whackMoleGames",
-            "AntForest.whackMoleMoleCount",
             "AntForest.whackMoleTime" ->
                 whackMoleState(modelFields)
 

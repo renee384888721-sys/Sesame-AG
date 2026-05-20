@@ -210,17 +210,15 @@ internal suspend fun AntForest.runForestHomeFollowUpWorkflow(selfHomeObj: JSONOb
 
     doforestgame()
 
-    if (shouldRefreshForestHomeAfterEnergyRain && !hasPendingRobMultiplierEnergy()) {
-        updateSelfHomePage(homePageSource = AntForestRpcCall.BACK_FROM_ENERGY_RAIN_SOURCE)
-        tc.countDebug("能量雨后刷新主页")
-    }
-
-    if (hasPendingRobMultiplierEnergy()) {
-        updateSelfHomePage(
-            collectRobMultiplierEnergy = true
-        )
-        tc.countDebug("领取N倍卡能量")
-    }
+    updateSelfHomePage(
+        collectRobMultiplierEnergy = true,
+        homePageSource = if (shouldRefreshForestHomeAfterEnergyRain) {
+            AntForestRpcCall.BACK_FROM_ENERGY_RAIN_SOURCE
+        } else {
+            null
+        }
+    )
+    tc.countDebug("领取N倍卡能量")
 
     logForestEnergyInfo()
     tc.stop()
