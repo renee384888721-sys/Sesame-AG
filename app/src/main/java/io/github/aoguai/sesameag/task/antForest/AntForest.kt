@@ -4057,10 +4057,10 @@ class AntForest : ModelTask(), EnergyCollectCallback {
     ): Boolean {
         val code = extractForestTaskFailureCode(response)
         val message = extractForestTaskFailureMessage(response)
-        val rpc = if (action.contains("receive", ignoreCase = true)) {
-            "AntForestRpcCall.receiveTaskAward"
-        } else {
-            "AntForestRpcCall.finishTask"
+        val rpc = when {
+            action.contains("opengreen", ignoreCase = true) -> "AntForestRpcCall.receiveTaskAwardopengreen"
+            action.contains("receive", ignoreCase = true) -> "AntForestRpcCall.receiveTaskAward"
+            else -> "AntForestRpcCall.finishTask"
         }
         val detail = "module=$forestTaskBlacklistModule taskId=$taskType taskType=$taskType taskName=$taskTitle " +
             "sceneCode=$sceneCode action=$action rpc=$rpc code=${code.ifBlank { "UNKNOWN" }} msg=$message raw=$response"
@@ -4170,8 +4170,25 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         val taskType: String,
         val touchId: String,
         val awardCount: Int,
-        val taskTitle: String
+        val taskTitle: String,
+        val fallbackTaskBaseInfo: JSONObject
     )
+
+    private fun isDeferredForestRightsTaskType(taskType: String): Boolean {
+        return taskType.startsWith("acc_task_energy_")
+    }
+
+    private fun isEnergyRainTaskCenterTaskType(taskType: String): Boolean {
+        return taskType == "ENERGYRAIN"
+    }
+
+    private fun canReceiveDeferredForestRightsAward(taskStatus: String): Boolean {
+        return taskStatus == TaskStatus.FINISHED.name ||
+            taskStatus == "COMPLETE" ||
+            taskStatus == "WAIT_RECEIVE" ||
+            taskStatus == "TO_RECEIVE" ||
+            taskStatus == TaskStatus.RECEIVED.name
+    }
 
     private fun parseTaskBizInfo(taskBaseInfo: JSONObject): JSONObject {
         val rawBizInfo = taskBaseInfo.optString("bizInfo")
@@ -4338,11 +4355,10 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         val taskBaseInfo = taskInfo.optJSONObject("taskBaseInfo") ?: return
         val taskType = taskBaseInfo.optString("taskType")
         val sceneCode = taskBaseInfo.optString("sceneCode")
-        val taskStatus = taskBaseInfo.optString("taskStatus")
         if (sceneCode.isBlank() || taskType.isBlank()) {
             return
         }
-        if (taskStatus != TaskStatus.RECEIVED.name || !taskType.startsWith("acc_task_energy_")) {
+        if (!isDeferredForestRightsTaskType(taskType)) {
             return
         }
         val taskRights = parseTaskRights(taskInfo)
@@ -4359,7 +4375,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         }
         deferredTasks.putIfAbsent(
             touchId,
-            DeferredForestRightsTask(sceneCode, taskType, touchId, awardCount, taskTitle)
+            DeferredForestRightsTask(sceneCode, taskType, touchId, awardCount, taskTitle, taskBaseInfo)
         )
     }
 
@@ -4458,9 +4474,11 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                     add(preferredSource)
                 }
                 add(AntForestRpcCall.OPEN_GREEN_RIGHTS_SOURCE)
+                add(AntForestRpcCall.BACK_FROM_ENERGY_RAIN_SOURCE)
                 add(null)
             }
             var response: JSONObject? = null
+            var responseSource: String? = null
             for (candidate in sourceCandidates) {
                 val candidateResponse = requestDeferredForestRights(sceneCode, touchIds, candidate)
                 if (candidateResponse == null || !ResChecker.checkRes(TAG, "领取森林累计奖励失败:", candidateResponse)) {
@@ -4470,6 +4488,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                     continue
                 }
                 response = candidateResponse
+                responseSource = candidate
                 if (hasTouchedDeferredForestRights(candidateResponse, touchIds) || candidate == null) {
                     break
                 }
@@ -4495,9 +4514,87 @@ class AntForest : ModelTask(), EnergyCollectCallback {
                 if (touched) {
                     val displayAwardCount = if (provideRightsNum > 0) provideRightsNum else task.awardCount
                     Log.forest("森林累计奖励🏆[${task.taskTitle}]# $displayAwardCount")
+                    receiveDeferredForestRightsAward(task, responseSource)
                 }
             }
         }
+    }
+
+    private fun receiveDeferredForestRightsAward(
+        task: DeferredForestRightsTask,
+        preferredSource: String? = null
+    ) {
+        val fallbackTaskBaseInfo = task.fallbackTaskBaseInfo
+        val taskBaseInfo = if (canReceiveDeferredForestRightsAward(fallbackTaskBaseInfo.optString("taskStatus"))) {
+            fallbackTaskBaseInfo
+        } else {
+            findDeferredForestRightsTaskBaseInfo(task, preferredSource) ?: fallbackTaskBaseInfo
+        }
+        val taskStatus = taskBaseInfo.optString("taskStatus")
+        if (!canReceiveDeferredForestRightsAward(taskStatus)) {
+            Log.forest("森林累计奖励[${task.taskTitle}] 已触达，刷新后状态[$taskStatus]暂不可领奖")
+            return
+        }
+
+        val rawTask = JSONObject(taskBaseInfo.toString()).apply {
+            if (!has("sceneCode") || optString("sceneCode").isBlank()) put("sceneCode", task.sceneCode)
+            if (!has("source") || optString("source").isBlank()) {
+                put("source", preferredSource ?: AntForestRpcCall.OPEN_GREEN_RIGHTS_SOURCE)
+            }
+            if (!has("taskType") || optString("taskType").isBlank()) put("taskType", task.taskType)
+        }
+        val response = AntForestRpcCall.receiveTaskAwardopengreen(rawTask)
+        if (response.isBlank()) {
+            Log.error(TAG, "森林累计奖励[${task.taskTitle}]领取失败: receiveTaskAwardopengreen返回空")
+            return
+        }
+        val responseObj = JSONObject(response)
+        val awardResponse = responseObj.optJSONObject("resData") ?: responseObj
+        when {
+            isForestTaskAlreadyHandled(awardResponse) -> {
+                Log.forest("森林累计奖励[${task.taskTitle}]已领取")
+            }
+
+            isAntiepSuccess(awardResponse) -> {
+                Log.forest("森林累计奖励🎖️[${task.taskTitle}]领取成功")
+            }
+
+            else -> {
+                handleForestTaskRpcFailure(
+                    action = "receiveTaskAwardopengreen",
+                    sceneCode = task.sceneCode,
+                    taskType = task.taskType,
+                    taskTitle = task.taskTitle,
+                    response = awardResponse,
+                    terminalResult = false
+                )
+            }
+        }
+    }
+
+    private fun findDeferredForestRightsTaskBaseInfo(
+        task: DeferredForestRightsTask,
+        preferredSource: String? = null
+    ): JSONObject? {
+        val sources = linkedMapOf<String, () -> String>().apply {
+            if (!preferredSource.isNullOrBlank()) {
+                put("take_look_end_task_list($preferredSource)") {
+                    AntForestRpcCall.queryTakeLookEndTaskList(preferredSource)
+                }
+            }
+            put("take_look_end_task_list") { AntForestRpcCall.queryTakeLookEndTaskList() }
+            put("home_task_list") { AntForestRpcCall.queryTaskList() }
+        }
+        for ((sourceName, request) in sources) {
+            val payload = queryForestTaskSource(sourceName, request) ?: continue
+            val taskNode = collectForestTaskNodes(payload).firstOrNull { taskInfo ->
+                val baseInfo = taskInfo.optJSONObject("taskBaseInfo") ?: return@firstOrNull false
+                baseInfo.optString("sceneCode") == task.sceneCode &&
+                    baseInfo.optString("taskType") == task.taskType
+            } ?: continue
+            return taskNode.optJSONObject("taskBaseInfo")
+        }
+        return null
     }
 
     private fun queryForestTaskSource(sourceName: String, query: () -> String): JSONObject? {
@@ -4976,6 +5073,9 @@ class AntForest : ModelTask(), EnergyCollectCallback {
         override fun mapPhase(item: TaskFlowItem): TaskFlowPhase {
             if (item.type == FOREST_SIGN_TASK_TYPE) {
                 return TaskFlowPhase.READY_TO_COMPLETE
+            }
+            if (isDeferredForestRightsTaskType(item.type) || isEnergyRainTaskCenterTaskType(item.type)) {
+                return TaskFlowPhase.TERMINAL
             }
             return when (item.status) {
                 TaskStatus.FINISHED.name,
