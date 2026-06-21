@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.aoguai.sesameag.model.BaseModel
 import io.github.aoguai.sesameag.ui.permissions.PermissionHealthItem
 import io.github.aoguai.sesameag.ui.permissions.PermissionHealthSnapshot
 import io.github.aoguai.sesameag.ui.permissions.PermissionPolicy
@@ -48,6 +49,7 @@ fun ServicesStatusCard(
     val hasPermissionIssue = permissionHealth.attentionCount > 0 || permissionHealth.hasCriticalIssue
     val shellReady = status is ServiceStatus.Active
     val loading = status is ServiceStatus.Loading || permissionHealth.totalCount == 0
+    val persistentForegroundLaunchEnabled = BaseModel.allowPersistentForegroundLaunch.value != false
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -108,6 +110,19 @@ fun ServicesStatusCard(
                     )
                 }
             }
+            if (!loading && !persistentForegroundLaunchEnabled) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "系统持久调度前台拉起已关闭：轮询、定时唤醒、预唤醒和森林/庄园/新村/运动持久任务到点后不再主动弹出目标应用；强时效任务改为仅进程存活时等待，或需手动打开目标应用后恢复。",
+                    style = MaterialTheme.typography.bodySmall,
+                    lineHeight = 18.sp,
+                    color = when {
+                        hasPermissionIssue -> MaterialTheme.colorScheme.onErrorContainer
+                        shellReady -> MaterialTheme.colorScheme.onPrimary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
 
             // 展开内容：故障排查
             AnimatedVisibility(
@@ -130,6 +145,14 @@ fun ServicesStatusCard(
                                 PermissionHealthRow(item)
                             }
                         }
+                    }
+                    if (!persistentForegroundLaunchEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "说明：这里只禁止系统持久调度主动前台拉起目标应用，不影响你手动打开目标应用后的主流程闭环；若系统仍偶发弹出，优先检查厂商自启动、后台弹出或后台活动启动权限。",
+                            style = MaterialTheme.typography.bodySmall,
+                            lineHeight = 18.sp
+                        )
                     }
                 }
             }
