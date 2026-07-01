@@ -1105,8 +1105,8 @@ class ChouChouLe {
     }
 
     fun refreshIpChouChouLeExchangeOptionsFromRpc(): List<ExchangeOptionRow> {
-        val activity = queryActiveIpDrawActivity() ?: return emptyList()
-        val snapshot = queryIpDrawMallSnapshot(activity) ?: return emptyList()
+        val activity = queryActiveIpDrawActivity() ?: throw IllegalStateException("未获取到有效的IP抽抽乐活动")
+        val snapshot = queryIpDrawMallSnapshot(activity) ?: throw IllegalStateException("未获取到IP抽抽乐商店快照")
         syncIpDrawShopSnapshot(snapshot)
         val rows = snapshot.items.map { buildIpChouChouLeExchangeOption(it).toOptionRow() }
         ExchangeOptionsCache.save(UserMap.currentUid, ExchangeOptionsRefreshBridge.TARGET_FARM_IP_CHOUCHOULE, rows)
