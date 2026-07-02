@@ -5021,6 +5021,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
     private fun completeOneClickWateringTask(item: TaskFlowItem): TaskFlowActionResult {
         val targetResult = queryOneClickWateringTargets(item)
         targetResult.failure?.let { return it }
+        val shouldNotifyFriend = notifyFriend?.value == true
         var wateredCount = 0
         var totalCountByDay: Int? = null
         var firstFailure: TaskFlowActionResult? = null
@@ -5029,7 +5030,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
             val maskedName = UserMap.getMaskName(targetUserId)
             val response = AntForestRpcCall.transferEnergyForOneClickWatering(
                 targetUser = targetUserId,
-                notifyFriend = true,
+                notifyFriend = shouldNotifyFriend,
                 orderIndex = index
             )
             if (response.isBlank()) {
