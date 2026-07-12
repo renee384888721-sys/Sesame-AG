@@ -452,8 +452,8 @@ class AntForest : ModelTask(), EnergyCollectCallback {
             BooleanModelField(
                 "takeLookEnergy",
                 "收集能量 | 是否启用找能量",
-                true
-            ).withDesc("关闭后跳过找能量接口，直接按现有流程继续好友与PK好友主页遍历。").also { takeLookEnergy = it })
+                false
+            ).withDesc("开启后使用找能量接口；关闭时直接按现有流程继续好友与 PK 好友主页遍历。").also { takeLookEnergy = it })
         modelFields.addField(
             BooleanModelField(
                 "pkEnergy",
@@ -696,8 +696,8 @@ class AntForest : ModelTask(), EnergyCollectCallback {
             BooleanModelField(
                 "wateringEnabled",
                 "浇水 | 开启",
-                true
-            ).withDesc("统一控制普通浇水、随机浇水任务、回浇和浇水金球/保护回赠收取；关闭后不影响复活金球与任务领奖。").also {
+                false
+            ).withDesc("开启后统一控制普通浇水、随机浇水任务、回浇和浇水金球/保护回赠收取；关闭后不影响复活金球与任务领奖。").also {
                 wateringEnabled = it
             })
         modelFields.addField(
@@ -1197,7 +1197,7 @@ class AntForest : ModelTask(), EnergyCollectCallback {
             val robbedTotal = summary.optInt("robbedTotal", 0)
 
             val selfName = UserMap.get(uid)?.showName ?: UserMap.getMaskName(uid) ?: uid
-            Log.forest("森林能量🌳[$selfName]今日累计获得${obtainTotal}g;今日被收${robbedTotal}g;当前${currentEnergy}g（服务端今日汇总，非本轮收取结果）")
+            Log.forest("森林能量🌳[$selfName]今日累计获得${obtainTotal}g;今日被收${robbedTotal}g;当前${currentEnergy}g（服务端今日汇总）")
         } catch (t: Throwable) {
             Log.printStackTrace(TAG, "logForestEnergyInfo err", t)
         }
