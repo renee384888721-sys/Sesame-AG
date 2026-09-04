@@ -95,7 +95,7 @@ jobs:
         run: git push origin dev
 
       # ========== 自动应用自定义补丁 ==========
-      - name: 应用自定义补丁（账号池上限改为无限制，取消随机浇水10克任务）
+      - name: 自定义补丁（账号池上限改为无限制，取消随机浇水10克任务）
         id: apply_patches
         run: |
           echo "## 🔧 自定义补丁应用状态" >> $GITHUB_STEP_SUMMARY
