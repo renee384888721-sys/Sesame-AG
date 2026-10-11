@@ -1,4 +1,4 @@
-name: Sesame-AG 安装包构建
+name: Sesame-AG 全自动构建系统（最终稳定版）
 run-name: ${{ github.actor }} 触发的构建 | ${{ github.event_name }}
 
 on:
@@ -21,6 +21,9 @@ env:
   STAGING_DIR: app/build/outputs/apk/all
   ASSET_DIR: app/build/outputs/apk/release-assets
   TARGET_SOURCE_BRANCH: dev
+
+  # 消除剩余Node版本弃用警告
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
   # 任务1：同步原仓库代码，检测是否有更新
@@ -91,97 +94,7 @@ jobs:
         if: steps.check_update.outputs.has_update == 'true'
         run: git push origin dev
 
-      # ========== 自动应用自定义补丁 ==========
-      - name: 应用自定义补丁（账号池上限改为无限制）
-        id: apply_patches
-        run: |
-          echo "## 🔧 自定义补丁应用状态" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          PATCH_DIR="patches"
-          APPLIED_COUNT=0
-          FAILED_COUNT=0
-          
-          if [ ! -d "$PATCH_DIR" ]; then
-            echo "ℹ️ 未找到 patches 目录，跳过补丁应用" >> $GITHUB_STEP_SUMMARY
-            echo "has_patches=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          
-          for patch_file in "$PATCH_DIR"/*.patch; do
-            [ -f "$patch_file" ] || continue
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 📄 补丁: $(basename "$patch_file")" >> $GITHUB_STEP_SUMMARY
-            
-            # 检查目标文件是否存在
-            TARGET_FILE=$(grep -m1 '^+++ b/' "$patch_file" | sed 's/^+++ b\///')
-            if [ -z "$TARGET_FILE" ]; then
-              echo "❌ 无法解析补丁目标文件" >> $GITHUB_STEP_SUMMARY
-              FAILED_COUNT=$((FAILED_COUNT + 1))
-              continue
-            fi
-            
-            if [ ! -f "$TARGET_FILE" ]; then
-              echo "❌ 目标文件不存在: \`$TARGET_FILE\`" >> $GITHUB_STEP_SUMMARY
-              echo "   原因：原仓库可能已重构或删除该文件，补丁需要更新" >> $GITHUB_STEP_SUMMARY
-              FAILED_COUNT=$((FAILED_COUNT + 1))
-              continue
-            fi
-            
-            # 检查补丁是否已经应用过
-            if git apply --reverse --check "$patch_file" 2>/dev/null; then
-              echo "ℹ️ 补丁已应用过，跳过" >> $GITHUB_STEP_SUMMARY
-              APPLIED_COUNT=$((APPLIED_COUNT + 1))
-              continue
-            fi
-            
-            # 尝试应用补丁
-            APPLY_OUTPUT=$(git apply --verbose "$patch_file" 2>&1)
-            APPLY_EXIT=$?
-            
-            if [ $APPLY_EXIT -eq 0 ]; then
-              echo "✅ 补丁应用成功" >> $GITHUB_STEP_SUMMARY
-              APPLIED_COUNT=$((APPLIED_COUNT + 1))
-              git add "$TARGET_FILE"
-            else
-              echo "❌ 补丁应用失败" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "**错误详情：**" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              echo "$APPLY_OUTPUT" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "**可能原因：**" >> $GITHUB_STEP_SUMMARY
-              echo "1. 原仓库已修改该文件的对应行，上下文不匹配" >> $GITHUB_STEP_SUMMARY
-              echo "2. 原仓库已重构该文件，行号或内容变化" >> $GITHUB_STEP_SUMMARY
-              echo "3. 补丁格式不正确" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "**当前目标文件相关内容：**" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              grep -n "MAX_EXECUTABLE_ACCOUNT_SLOTS" "$TARGET_FILE" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "未找到常量定义" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              FAILED_COUNT=$((FAILED_COUNT + 1))
-            fi
-          done
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 汇总" >> $GITHUB_STEP_SUMMARY
-          echo "- 成功: $APPLIED_COUNT" >> $GITHUB_STEP_SUMMARY
-          echo "- 失败: $FAILED_COUNT" >> $GITHUB_STEP_SUMMARY
-          
-          echo "applied_count=$APPLIED_COUNT" >> "$GITHUB_OUTPUT"
-          echo "failed_count=$FAILED_COUNT" >> "$GITHUB_OUTPUT"
-          
-          if [ $APPLIED_COUNT -gt 0 ]; then
-            git commit -m "chore: 应用自定义补丁（账号池上限调整）" || echo "无变更需提交"
-            echo "has_patches=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_patches=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: 推送补丁修改到本地仓库
-        if: steps.apply_patches.outputs.has_patches == 'true'
-        run: git push origin dev
+      # 自定义改动统一在 customizations/apply.sh 中维护
 
   # 任务2：构建APK、签名、发布Release、清理旧版本
   build-and-sign:
@@ -236,7 +149,7 @@ jobs:
           set -o pipefail
 
       - name: 配置Gradle缓存（加速构建）
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: wrapper
           cache-read-only: false
@@ -244,6 +157,9 @@ jobs:
 
       - name: 赋予Gradle执行权限
         run: chmod +x gradlew
+
+      - name: 应用自定义改动
+        run: bash customizations/apply.sh
 
       - name: 执行Release构建
         run: ./gradlew --no-daemon --stacktrace assembleRelease
@@ -259,44 +175,14 @@ jobs:
 
       - name: 对APK进行签名
         id: sign_apks
-        env:
-          SIGNING_KEY: ${{ secrets.KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          KEYSTORE=$(mktemp)
-          printf '%s' "$SIGNING_KEY" | base64 -d > "$KEYSTORE"
-          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
-          APKSIGNER="${SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS}/apksigner"
-          if [ ! -x "$APKSIGNER" ]; then
-            APKSIGNER=$(ls -1 "${SDK_ROOT}"/build-tools/*/apksigner | sort | tail -n1)
-          fi
-          signed_files=()
-          shopt -s nullglob
-          for apk in "${STAGING_DIR}"/*.apk; do
-            case "$apk" in
-              *-signed.apk) continue ;;
-            esac
-            out="${apk%.apk}-signed.apk"
-            "$APKSIGNER" sign \
-              --ks "$KEYSTORE" \
-              --ks-key-alias "$KEY_ALIAS" \
-              --ks-pass "pass:${KEYSTORE_PASSWORD}" \
-              --key-pass "pass:${KEY_PASSWORD}" \
-              --out "$out" \
-              "$apk"
-            signed_files+=("$out")
-          done
-          if [ ${#signed_files[@]} -eq 0 ]; then
-            echo "没有找到可签名的 APK"
-            exit 1
-          fi
-          {
-            echo "signedFiles=$(IFS=:; echo "${signed_files[*]}")"
-            echo "signedFilesCount=${#signed_files[@]}"
-            echo "signedFile=${signed_files[0]}"
-          } >> "$GITHUB_OUTPUT"
+        uses: ilharp/sign-android-release@v2
+        with:
+          releaseDir: ${{ env.STAGING_DIR }}
+          signingKey: ${{ secrets.KEYSTORE_BASE64 }}
+          keyAlias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+          buildToolsVersion: ${{ env.ANDROID_BUILD_TOOLS }}
 
       - name: 显示签名完成的文件列表
         run: |
@@ -413,7 +299,7 @@ jobs:
           echo "--- 预览结束 ---"
 
       - name: 创建GitHub Release（所有APK单独展示 + 完整更新日志）
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.prepare_assets.outputs.tag_name }}
           name: Sesame-AG v${{ steps.prepare_assets.outputs.version }}
@@ -424,11 +310,11 @@ jobs:
             ${{ env.ASSET_DIR }}/*.sha256
           body_path: release-body.md
 
-      - name: 清理旧版本（保留最近100个）
+      - name: 清理旧版本（保留最近10个）
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          KEEP_LATEST: 100
+          KEEP_LATEST: 10
         run: |
           releases=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO/releases?per_page=100" | \
@@ -537,14 +423,14 @@ jobs:
           echo "✅ 邮件内容已生成"
 
       - name: 发送构建结果邮件
-        uses: dawidd6/action-send-mail@v18
+        uses: dawidd6/action-send-mail@v6
         with:
-          server_address: smtp.163.com
+          server_address: smtp.qq.com
           server_port: 465
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           to: ${{ secrets.EMAIL_RECEIVER }}
-          from: GitHub Actions <${{ secrets.EMAIL_USERNAME }}>
+          from: GitHub Actions 自动构建
           subject: ${{ steps.gen_email.outputs.subject }}
           body: file://email-body.txt
 
